@@ -1,3 +1,5 @@
+const { response } = require("express");
+
 let db;
 // Create a new request for budget database
 const request = indexedDB.open('budget', 1);
@@ -37,7 +39,39 @@ function saveRecord(record){
 };
 
 // Helper function to check the database for pending transactions
-function checkDatabase() {};
+function checkDatabase() {
+    // Open transaction on pending db
+    const transaction = db.transaction(['pending'], 'readwrite');
+
+    // Access your pending object store
+    const store = transaction.objectStore('pending');
+
+    // Get all records 
+    const getAll = store.getAll();
+
+    getAll.onsuccess = function() {
+        if (getAll.result.length > 0) {
+            fetch('/api/transaction/bulk', {
+                method: 'POST',
+                body: JSON.stringify(getAll.result),
+                headers: {
+                    Accept: 'application/json, text/plain, */*',
+                    'Content-Type': 'application/json'
+                }
+            }).then(response => response.json())
+            .then(() => {
+                // If successful, open a transaction from pending db
+                const transaction = db.transaction(['pending'], 'readwrite');
+
+                // Access pending object store
+                const store = transaction.objectStore('pending');
+
+                // Clear all items in store
+                store.clear();
+            });
+        }
+    }
+};
 
 // Event Listener for when the app returns online
 window.addEventListener('online', checkDatabase);
